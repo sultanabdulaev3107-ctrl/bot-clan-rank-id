@@ -3,9 +3,8 @@ const OWNER_ID = "8732464021";
 
 const API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
-const chats = new Map();
-
 async function sendMessage(chatId, text) {
+
   await fetch(`${API}/sendMessage`, {
     method: "POST",
     headers: {
@@ -13,13 +12,40 @@ async function sendMessage(chatId, text) {
     },
     body: JSON.stringify({
       chat_id: chatId,
-      text: text
+      text
     })
   });
 }
 
+// =======================
+// HISTORY
+// =======================
+
+async function getHistory(env, userId) {
+
+  const data = await env.CHATS.get(userId);
+
+  if (!data) {
+    return [];
+  }
+
+  return JSON.parse(data);
+}
+
+async function saveHistory(env, userId, history) {
+
+  // ограничиваем историю
+  const limited = history.slice(-30);
+
+  await env.CHATS.put(
+    userId,
+    JSON.stringify(limited)
+  );
+}
+
 export default {
-  async fetch(request) {
+
+  async fetch(request, env) {
 
     if (request.method !== "POST") {
       return new Response("Bot is running");
@@ -36,7 +62,9 @@ export default {
     const chatId = String(msg.chat.id);
     const text = msg.text || "";
 
-    // ===== OWNER =====
+    // =======================
+    // OWNER
+    // =======================
 
     if (chatId === OWNER_ID) {
 
@@ -52,18 +80,27 @@ export default {
 
         if (/^\d+$/.test(targetId)) {
 
-          // сохраняем историю
-          if (!chats.has(targetId)) {
-            chats.set(targetId, []);
-          }
+          // история
+          const history = await getHistory(
+            env,
+            targetId
+          );
 
-          chats.get(targetId).push(`Ты: ${messageText}`);
+          history.push(`Ты: ${messageText}`);
 
+          await saveHistory(
+            env,
+            targetId,
+            history
+          );
+
+          // отправка пользователю
           await sendMessage(
             targetId,
             messageText
           );
 
+          // подтверждение владельцу
           await sendMessage(
             OWNER_ID,
             `✅ Отправлено пользователю ${targetId}`
@@ -74,20 +111,24 @@ export default {
       return new Response("ok");
     }
 
-    // ===== USER =====
+    // =======================
+    // USER
+    // =======================
 
-    const username = msg.from.username
-      ? `@${msg.from.username}`
-      : "без username";
+    const firstName =
+      msg.from.first_name || "друг";
 
-    const firstName = msg.from.first_name || "друг";
+    const username =
+      msg.from.username
+        ? `@${msg.from.username}`
+        : "без username";
 
     // /start
     if (text === "/start") {
 
       await sendMessage(
         chatId,
-        `Привет, ${firstName} 👋
+`Привет, ${firstName} 👋
 
 Оставьте своё сообщение и с вами свяжутся в течение дня.`
       );
@@ -95,22 +136,26 @@ export default {
       return new Response("ok");
     }
 
-    // создаём историю
-    if (!chats.has(chatId)) {
-      chats.set(chatId, []);
-    }
+    // получаем историю
+    const history = await getHistory(
+      env,
+      chatId
+    );
 
-    // добавляем сообщение
-    chats.get(chatId).push(`Пользователь: ${text}`);
+    // сохраняем сообщение
+    history.push(`Пользователь: ${text}`);
 
-    // ограничиваем историю
-    if (chats.get(chatId).length > 20) {
-      chats.get(chatId).shift();
-    }
+    await saveHistory(
+      env,
+      chatId,
+      history
+    );
 
-    const history = chats.get(chatId).join("\n");
+    // история текстом
+    const historyText =
+      history.join("\n");
 
-    // пересылаем владельцу
+    // отправляем владельцу
     await sendMessage(
       OWNER_ID,
 `📩 Новое сообщение
@@ -126,7 +171,7 @@ ${text}
 
 📜 История диалога:
 
-${history}`
+${historyText}`
     );
 
     return new Response("ok");
