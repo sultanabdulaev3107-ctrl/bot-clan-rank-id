@@ -23,7 +23,7 @@ async function sendMessage(chatId, text) {
 
 async function getHistory(env, userId) {
 
-  const data = await env.CHATS.get(userId);
+  const data = await env.xarizma_chat.get(userId);
 
   if (!data) {
     return [];
@@ -34,10 +34,9 @@ async function getHistory(env, userId) {
 
 async function saveHistory(env, userId, history) {
 
-  // ограничиваем историю
   const limited = history.slice(-30);
 
-  await env.CHATS.put(
+  await env.xarizma_chat.put(
     userId,
     JSON.stringify(limited)
   );
@@ -68,25 +67,27 @@ export default {
 
     if (chatId === OWNER_ID) {
 
-      // Формат:
-      // 123456789 привет
-
       const firstSpace = text.indexOf(" ");
 
       if (firstSpace !== -1) {
 
-        const targetId = text.slice(0, firstSpace);
-        const messageText = text.slice(firstSpace + 1);
+        const targetId =
+          text.slice(0, firstSpace);
+
+        const messageText =
+          text.slice(firstSpace + 1);
 
         if (/^\d+$/.test(targetId)) {
 
-          // история
-          const history = await getHistory(
-            env,
-            targetId
-          );
+          const history =
+            await getHistory(
+              env,
+              targetId
+            );
 
-          history.push(`Ты: ${messageText}`);
+          history.push(
+            `Ты: ${messageText}`
+          );
 
           await saveHistory(
             env,
@@ -94,13 +95,11 @@ export default {
             history
           );
 
-          // отправка пользователю
           await sendMessage(
             targetId,
             messageText
           );
 
-          // подтверждение владельцу
           await sendMessage(
             OWNER_ID,
             `✅ Отправлено пользователю ${targetId}`
@@ -136,14 +135,15 @@ export default {
       return new Response("ok");
     }
 
-    // получаем историю
-    const history = await getHistory(
-      env,
-      chatId
-    );
+    const history =
+      await getHistory(
+        env,
+        chatId
+      );
 
-    // сохраняем сообщение
-    history.push(`Пользователь: ${text}`);
+    history.push(
+      `Пользователь: ${text}`
+    );
 
     await saveHistory(
       env,
@@ -151,11 +151,9 @@ export default {
       history
     );
 
-    // история текстом
     const historyText =
       history.join("\n");
 
-    // отправляем владельцу
     await sendMessage(
       OWNER_ID,
 `📩 Новое сообщение
