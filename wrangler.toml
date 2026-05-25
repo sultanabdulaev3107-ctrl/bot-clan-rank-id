@@ -1,3 +1,7 @@
 name = "telegram-private-bot"
 main = "worker.js"
 compatibility_date = "2026-05-25"
+
+[[kv_namespaces]]
+binding = "xarizma_chat"
+id = "375e8909e0194d39bacb1608ff7ccf4f"
