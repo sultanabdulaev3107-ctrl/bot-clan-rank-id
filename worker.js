@@ -4,12 +4,9 @@ const OWNER_ID = "8732464021";
 const API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
 async function sendMessage(chatId, text) {
-
   await fetch(`${API}/sendMessage`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       chat_id: chatId,
       text
@@ -17,161 +14,93 @@ async function sendMessage(chatId, text) {
   });
 }
 
-// =======================
-// HISTORY
-// =======================
+// ===== KV =====
 
 async function getHistory(env, userId) {
-
   const data = await env.xarizma_chat.get(userId);
-
-  if (!data) {
-    return [];
-  }
-
-  return JSON.parse(data);
+  return data ? JSON.parse(data) : [];
 }
 
 async function saveHistory(env, userId, history) {
-
-  const limited = history.slice(-30);
-
   await env.xarizma_chat.put(
     userId,
-    JSON.stringify(limited)
+    JSON.stringify(history.slice(-30))
   );
 }
 
 export default {
-
   async fetch(request, env) {
-
-    if (request.method !== "POST") {
-      return new Response("Bot is running");
-    }
+    if (request.method !== "POST") return new Response("ok");
 
     const update = await request.json();
-
-    if (!update.message) {
-      return new Response("ok");
-    }
+    if (!update.message) return new Response("ok");
 
     const msg = update.message;
 
     const chatId = String(msg.chat.id);
     const text = msg.text || "";
 
-    // =======================
-    // OWNER
-    // =======================
-
+    // ================= OWNER =================
     if (chatId === OWNER_ID) {
+      const space = text.indexOf(" ");
 
-      const firstSpace = text.indexOf(" ");
-
-      if (firstSpace !== -1) {
-
-        const targetId =
-          text.slice(0, firstSpace);
-
-        const messageText =
-          text.slice(firstSpace + 1);
+      if (space !== -1) {
+        const targetId = text.slice(0, space);
+        const messageText = text.slice(space + 1);
 
         if (/^\d+$/.test(targetId)) {
+          const history = await getHistory(env, targetId);
 
-          const history =
-            await getHistory(
-              env,
-              targetId
-            );
+          history.push(`Ты: ${messageText}`);
+          await saveHistory(env, targetId, history);
 
-          history.push(
-            `Ты: ${messageText}`
-          );
+          await sendMessage(targetId, messageText);
 
-          await saveHistory(
-            env,
-            targetId,
-            history
-          );
-
-          await sendMessage(
-            targetId,
-            messageText
-          );
-
-          await sendMessage(
-            OWNER_ID,
-            `✅ Отправлено пользователю ${targetId}`
-          );
+          await sendMessage(OWNER_ID, `✔ ${targetId}`);
         }
       }
 
       return new Response("ok");
     }
 
-    // =======================
-    // USER
-    // =======================
+    // ================= USER =================
+    const name = msg.from.first_name || "друг";
+    const username = msg.from.username ? `@${msg.from.username}` : "no_username";
 
-    const firstName =
-      msg.from.first_name || "друг";
-
-    const username =
-      msg.from.username
-        ? `@${msg.from.username}`
-        : "без username";
-
-    // /start
     if (text === "/start") {
-
       await sendMessage(
         chatId,
-`Привет, ${firstName} 👋
+`Привет, ${name} 👋
 
-Оставьте своё сообщение и с вами свяжутся в течение дня.`
+Оставьте сообщение и с вами свяжутся в течение дня.`
       );
-
       return new Response("ok");
     }
 
-    const history =
-      await getHistory(
-        env,
-        chatId
-      );
+    const history = await getHistory(env, chatId);
+    history.push(`Пользователь: ${text}`);
+    await saveHistory(env, chatId, history);
 
-    history.push(
-      `Пользователь: ${text}`
-    );
+    const historyText = history.join("\n");
 
-    await saveHistory(
-      env,
-      chatId,
-      history
-    );
+    // ================= OWNER OUTPUT =================
 
-    const historyText =
-      history.join("\n");
+    // 1) отдельное сообщение только ID (копируемое)
+    await sendMessage(OWNER_ID, `${chatId}`);
 
+    // 2) основное сообщение (как ты просил — БЕЗ "новое сообщение")
     await sendMessage(
       OWNER_ID,
-`📩 Новое сообщение
+`${name} ${username}
+ID: ${chatId}
 
-👤 ${firstName}
-🔗 ${username}
-🆔 ${chatId}
-
-💬 Сообщение:
 ${text}
 
 ────────────
-
-📜 История диалога:
-
+История:
 ${historyText}`
     );
 
     return new Response("ok");
   }
-}
+};
