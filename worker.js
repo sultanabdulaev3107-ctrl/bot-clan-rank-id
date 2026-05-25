@@ -1,5 +1,5 @@
-const BOT_TOKEN = "8633981336:AAFPhNi9RtHzh1iDS7LmGgXqcns8Rx45gJQ";
-const OWNER_ID = "8732464021";
+const BOT_TOKEN = "8484131307:AAHE9K3d7JwIVwaUtjCaa2DrIvRxCZnDRLI";
+const OWNER_ID = "7729315191";
 
 const API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
